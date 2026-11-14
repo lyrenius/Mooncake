@@ -93,7 +93,7 @@ void MooncakeWorker::startWorker() {
         if (cuda_device_index_ >= 0) {
             cudaSetDevice(cuda_device_index_);
         }
-        std::atomic<WorkerTaskStatus> task_status[kNumTasks_];
+        std::atomic<WorkerTaskStatus> task_status[kNumTasks_]{};
         using clock = std::chrono::high_resolution_clock;
 
         // Per-slot state owned exclusively by this worker thread.
@@ -125,7 +125,6 @@ void MooncakeWorker::startWorker() {
             for (size_t i = 0; i < kNumTasks_; ++i) {
                 auto& task = tasks_[i];
                 if (!task.active) {
-                    task_status[i].store(IDLE, std::memory_order_release);
                     continue;
                 }
 
@@ -151,9 +150,10 @@ void MooncakeWorker::startWorker() {
                     // Consecutive runs of a half alternate between its two
                     // sets of sync flags.
                     syncFlagOffset[i] =
-                        group->bufferHalfRuns[task.bufferOffset].fetch_add(
-                            1, std::memory_order_relaxed) %
-                        2 * kMaxNumRanks;
+                        (group->bufferHalfRuns[task.bufferOffset].fetch_add(
+                             1, std::memory_order_relaxed) %
+                         2) *
+                        kMaxNumRanks;
 
                     if (task.resetFailedRanksHint &&
                         active_failed_ranks_hint[i]) {
